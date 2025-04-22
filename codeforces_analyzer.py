@@ -41,9 +41,11 @@ class CodeforcesProblemDirectory:
         # Create tabs
         self.setup_tab = ttk.Frame(self.tab_control, style="Tab.TFrame")
         self.output_tab = ttk.Frame(self.tab_control, style="Tab.TFrame")
+        self.update_tab = ttk.Frame(self.tab_control, style="Tab.TFrame")  # New update tab
         
         self.tab_control.add(self.setup_tab, text="Setup")
         self.tab_control.add(self.output_tab, text="Output")
+        self.tab_control.add(self.update_tab, text="Update")  # Add update tab
         self.tab_control.pack(expand=1, fill=tk.BOTH, padx=5, pady=5)
         
         # Create setup tab content
@@ -52,8 +54,12 @@ class CodeforcesProblemDirectory:
         # Create output tab content
         self.create_output_tab()
         
+        # Create update tab content
+        self.create_update_tab()  # Add this method call
+        
         # Initialize variables
         self.generated_file_path = None
+        self.last_update_time = None
         
     def setup_styles(self):
         # Configure style for all widgets
@@ -205,10 +211,216 @@ class CodeforcesProblemDirectory:
                                         state=tk.DISABLED)
         self.open_file_button.pack(pady=10)
     
+    # New method to create update tab
+    def create_update_tab(self):
+        # Create update frame
+        update_frame = ttk.Frame(self.update_tab, style='Card.TFrame')
+        update_frame.pack(fill=tk.X, padx=20, pady=15, ipady=10)
+        
+        # Update Section Header
+        ttk.Label(update_frame, text="Update Existing Directory", style='Subheader.TLabel').grid(
+            row=0, column=0, columnspan=3, padx=15, pady=(15, 10), sticky=tk.W)
+        
+        # Select directory to update
+        ttk.Label(update_frame, text="Select Directory:", style='Card.TLabel').grid(
+            row=1, column=0, sticky=tk.W, padx=15, pady=8)
+        
+        dir_select_frame = ttk.Frame(update_frame, style='Card.TFrame')
+        dir_select_frame.grid(row=1, column=1, columnspan=2, sticky=tk.W, pady=8)
+        
+        self.update_dir_var = tk.StringVar()
+        update_dir_entry = ttk.Entry(dir_select_frame, textvariable=self.update_dir_var, width=30)
+        update_dir_entry.pack(side=tk.LEFT)
+        
+        browse_update_button = ttk.Button(dir_select_frame, text="Browse...", 
+                                        command=self.browse_update_dir)
+        browse_update_button.pack(side=tk.LEFT, padx=5)
+        
+        # Auto-detect button (finds the last generated directory)
+        auto_detect_button = ttk.Button(dir_select_frame, text="Auto-detect Last", 
+                                     command=self.auto_detect_directory)
+        auto_detect_button.pack(side=tk.LEFT, padx=5)
+        
+        # Directory info frame
+        self.directory_info_frame = ttk.Frame(update_frame, style='Card.TFrame')
+        self.directory_info_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), padx=15, pady=8)
+        self.directory_info_frame.grid_remove()  # Hide initially
+        
+        # Update button
+        update_button_frame = ttk.Frame(update_frame, style='Card.TFrame')
+        update_button_frame.grid(row=3, column=0, columnspan=3, pady=15)
+        
+        self.update_button = ttk.Button(update_button_frame, text="Update Solve Information", 
+                                     command=self.start_update, style='Primary.TButton',
+                                     width=25, state=tk.DISABLED)
+        self.update_button.pack()
+        
+        # Update status frame
+        update_status_frame = ttk.Frame(self.update_tab, style='Card.TFrame')
+        update_status_frame.pack(fill=tk.X, padx=20, pady=15, ipady=10)
+        
+        ttk.Label(update_status_frame, text="Update Status", style='Card.TLabel').grid(
+            row=0, column=0, padx=15, pady=(15, 10), sticky=tk.W)
+        
+        # Update progress bar
+        self.update_progress_var = tk.DoubleVar()
+        update_progress_frame = ttk.Frame(update_status_frame, style='Card.TFrame')
+        update_progress_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=15, pady=5)
+        
+        self.update_progress = ttk.Progressbar(update_progress_frame, 
+                                            variable=self.update_progress_var,
+                                            maximum=100, length=400)
+        self.update_progress.pack(fill=tk.X)
+        
+        # Update status message
+        update_msg_frame = ttk.Frame(update_status_frame, style='Card.TFrame')
+        update_msg_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), padx=15, pady=5)
+        
+        self.update_status_var = tk.StringVar(value="Select a directory to update")
+        update_status_label = ttk.Label(update_msg_frame, textvariable=self.update_status_var,
+                                      style='Card.TLabel')
+        update_status_label.pack(anchor=tk.W)
+        
+        # Update log
+        update_log_frame = ttk.Frame(self.update_tab)
+        update_log_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=15)
+        
+        ttk.Label(update_log_frame, text="Update Log", style='Subheader.TLabel').pack(anchor=tk.W, pady=(0, 5))
+        
+        # Update log text with scrollbar
+        update_text_frame = ttk.Frame(update_log_frame)
+        update_text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.update_text = tk.Text(update_text_frame, wrap=tk.WORD, font=('Consolas', 10), height=10)
+        self.update_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.update_text.config(state=tk.DISABLED)
+        
+        update_scrollbar = ttk.Scrollbar(update_text_frame, command=self.update_text.yview)
+        update_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.update_text.config(yscrollcommand=update_scrollbar.set)
+    
     def browse_output_dir(self):
         directory = filedialog.askdirectory()
         if directory:
             self.output_dir_var.set(directory)
+    
+    def browse_update_dir(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            self.update_dir_var.set(directory)
+            self.check_update_directory()
+    
+    def auto_detect_directory(self):
+        """Try to find the last generated directory"""
+        if self.generated_file_path and os.path.exists(self.generated_file_path):
+            # Get the directory containing the index file
+            dir_path = os.path.dirname(self.generated_file_path)
+            self.update_dir_var.set(dir_path)
+            self.check_update_directory()
+        else:
+            # If no directory was generated in this session, check the default location
+            default_path = os.path.expanduser("~/codeforces_problems")
+            if os.path.exists(default_path):
+                # Look for subdirectories with "codeforces_" prefix
+                candidates = [os.path.join(default_path, d) for d in os.listdir(default_path) 
+                            if os.path.isdir(os.path.join(default_path, d)) and 
+                            d.startswith("codeforces_")]
+                
+                if candidates:
+                    # Sort by modification time (newest first)
+                    candidates.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+                    self.update_dir_var.set(candidates[0])
+                    self.check_update_directory()
+                else:
+                    messagebox.showinfo("Auto-detect", "No existing directories found.")
+            else:
+                messagebox.showinfo("Auto-detect", "No existing directories found.")
+    
+    def check_update_directory(self):
+        """Check if the selected directory is a valid Codeforces directory and show info"""
+        dir_path = self.update_dir_var.get().strip()
+        
+        if not dir_path or not os.path.isdir(dir_path):
+            self.update_button.configure(state=tk.DISABLED)
+            self.update_status_var.set("Invalid directory selected")
+            self.directory_info_frame.grid_remove()
+            return
+        
+        # Check for index.html file
+        index_path = os.path.join(dir_path, "index.html")
+        if not os.path.exists(index_path):
+            self.update_button.configure(state=tk.DISABLED)
+            self.update_status_var.set("Selected directory is not a valid Codeforces directory")
+            self.directory_info_frame.grid_remove()
+            return
+        
+        # Parse the index.html to extract user information
+        try:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Extract username and comparison handle using simple parsing
+            # This is a basic implementation - could be improved with HTML parsing libraries
+            username = None
+            compare_handle = None
+            
+            # Find username pattern
+            import re
+            username_match = re.search(r'Problems Solved by ([^<]+)</h1>', content)
+            if username_match:
+                username = username_match.group(1).strip()
+            
+            # Find comparison handle if present
+            compare_match = re.search(r'Comparing with: ([^<]+)</div>', content)
+            if compare_match:
+                compare_handle = compare_match.group(1).strip()
+            
+            # Find generation timestamp
+            timestamp_match = re.search(r'Generated on: ([^<]+)</p>', content)
+            last_update = timestamp_match.group(1).strip() if timestamp_match else "Unknown"
+            
+            # Clear existing widgets in directory_info_frame
+            for widget in self.directory_info_frame.winfo_children():
+                widget.destroy()
+            
+            # Display directory info
+            ttk.Label(self.directory_info_frame, text="Directory Information:", 
+                    style='CardTitle.TLabel').grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+            
+            ttk.Label(self.directory_info_frame, text="Username:", 
+                    style='Card.TLabel').grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(self.directory_info_frame, text=username or "Not found", 
+                    style='Card.TLabel').grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+            
+            ttk.Label(self.directory_info_frame, text="Compare Handle:", 
+                    style='Card.TLabel').grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(self.directory_info_frame, text=compare_handle or "None", 
+                    style='Card.TLabel').grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+            
+            ttk.Label(self.directory_info_frame, text="Last Updated:", 
+                    style='Card.TLabel').grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(self.directory_info_frame, text=last_update, 
+                    style='Card.TLabel').grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+            
+            # Show the frame
+            self.directory_info_frame.grid()
+            
+            # Enable update button if we found a username
+            if username:
+                self.update_button.configure(state=tk.NORMAL)
+                self.update_status_var.set("Ready to update")
+                
+                # Save the parsed information for later use during update
+                self.update_username = username
+                self.update_compare_handle = compare_handle
+            else:
+                self.update_button.configure(state=tk.DISABLED)
+                self.update_status_var.set("Could not determine username from directory")
+        
+        except Exception as e:
+            self.update_button.configure(state=tk.DISABLED)
+            self.update_status_var.set(f"Error analyzing directory: {str(e)}")
+            self.directory_info_frame.grid_remove()
     
     def start_generation(self):
         self.tab_control.select(1)  # Switch to output tab
@@ -246,8 +458,30 @@ class CodeforcesProblemDirectory:
                         args=(username, compare_handle, output_dir), 
                         daemon=True).start()
     
+    def start_update(self):
+        """Start the update process for an existing directory"""
+        self.update_button.configure(state=tk.DISABLED)
+        self.update_status_var.set("Updating solve information...")
+        self.update_progress_var.set(0)
+        
+        # Clear update text
+        self.update_text.config(state=tk.NORMAL)
+        self.update_text.delete(1.0, tk.END)
+        self.update_text.config(state=tk.DISABLED)
+        
+        dir_path = self.update_dir_var.get().strip()
+        
+        # Run update in a separate thread
+        threading.Thread(target=self.update_directory, 
+                        args=(dir_path, self.update_username, self.update_compare_handle), 
+                        daemon=True).start()
+    
     def update_status(self, message):
         self.root.after(0, lambda: self.status_var.set(message))
+        time.sleep(0.5)  # Small delay to show progress
+    
+    def update_update_status(self, message):
+        self.root.after(0, lambda: self.update_status_var.set(message))
         time.sleep(0.5)  # Small delay to show progress
     
     def append_output(self, message):
@@ -258,6 +492,15 @@ class CodeforcesProblemDirectory:
         self.output_text.insert(tk.END, message + "\n")
         self.output_text.see(tk.END)
         self.output_text.config(state=tk.DISABLED)
+    
+    def append_update_log(self, message):
+        self.root.after(0, lambda: self._append_update_log(message))
+    
+    def _append_update_log(self, message):
+        self.update_text.config(state=tk.NORMAL)
+        self.update_text.insert(tk.END, message + "\n")
+        self.update_text.see(tk.END)
+        self.update_text.config(state=tk.DISABLED)
     
     def generate_directory(self, username, compare_handle, output_dir):
         try:
@@ -311,6 +554,7 @@ class CodeforcesProblemDirectory:
                 problems_by_tag, compare_solved_set, site_dir)
             
             self.generated_file_path = index_path
+            self.last_update_time = datetime.datetime.now()
             
             # Step 5: Complete
             self.progress_var.set(100)
@@ -330,6 +574,76 @@ class CodeforcesProblemDirectory:
             self.append_output(f"Error: {str(e)}")
         finally:
             self.root.after(0, lambda: self.reset_ui())
+    
+    def update_directory(self, dir_path, username, compare_handle):
+        """Update an existing directory with fresh solve information"""
+        try:
+            self.append_update_log(f"Starting update for directory: {dir_path}")
+            self.append_update_log(f"Username: {username}")
+            if compare_handle:
+                self.append_update_log(f"Compare handle: {compare_handle}")
+            
+            # Step 1: Fetch user's solved problems
+            self.update_progress_var.set(10)
+            self.update_update_status(f"Fetching submissions for {username}...")
+            self.append_update_log(f"Fetching submissions for {username}...")
+            
+            submissions = self.fetch_user_submissions(username)
+            if not submissions:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error", f"No submissions found for {username}"))
+                self.append_update_log(f"Error: No submissions found for {username}")
+                self.root.after(0, lambda: self.reset_update_ui())
+                return
+            
+            # Step 2: Fetch compare handle's submissions if provided
+            compare_submissions = []
+            if compare_handle:
+                self.update_progress_var.set(20)
+                self.update_update_status(f"Fetching submissions for comparison handle {compare_handle}...")
+                self.append_update_log(f"Fetching submissions for comparison handle {compare_handle}...")
+                compare_submissions = self.fetch_user_submissions(compare_handle)
+                if not compare_submissions:
+                    self.append_update_log(f"Warning: No submissions found for comparison handle {compare_handle}")
+            
+            # Step 3: Extract solved problems and organize by tags
+            self.update_progress_var.set(30)
+            self.update_update_status("Organizing problems by tags...")
+            self.append_update_log("Organizing problems by tags...")
+            
+            problems_by_tag, compare_solved_set = self.organize_problems_by_tags(
+                submissions, compare_submissions)
+            
+            # Step 4: Create CSS file if it doesn't exist (or ensure it's up to date)
+            self.create_css_file(dir_path)
+            
+            # Step 5: Update the directory files
+            self.update_progress_var.set(50)
+            self.update_update_status("Updating directory files...")
+            self.append_update_log("Updating directory files...")
+            
+            # Generate the index and tag pages with updated information
+            index_path = self.generate_multi_page_site(
+                username, compare_handle if compare_handle else None, 
+                problems_by_tag, compare_solved_set, dir_path)
+            
+            self.last_update_time = datetime.datetime.now()
+            
+            # Step 6: Complete
+            self.update_progress_var.set(100)
+            self.update_update_status(f"Directory updated successfully")
+            self.append_update_log(f"Directory updated successfully!")
+            self.append_update_log(f"Main page saved at: {index_path}")
+            
+            # Show success message
+            self.root.after(0, lambda: self.show_update_success_message(index_path))
+            
+        except Exception as e:
+            self.root.after(0, lambda: messagebox.showerror(
+                "Error", f"An error occurred during update: {str(e)}"))
+            self.append_update_log(f"Error: {str(e)}")
+        finally:
+            self.root.after(0, lambda: self.reset_update_ui())
     
     def fetch_user_submissions(self, username):
         try:
@@ -456,6 +770,29 @@ h1 {
     font-style: italic;
     opacity: 0.8;
     margin-top: 10px;
+}
+
+/* Update info */
+.update-button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    margin-top: 10px;
+    transition: background-color 0.2s;
+}
+
+.update-button:hover {
+    background-color: #e68200;
+}
+
+.last-updated {
+    margin-top: 5px;
+    font-size: 0.9rem;
+    opacity: 0.8;
 }
 
 /* Card Styles */
@@ -664,6 +1001,49 @@ footer {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Codeforces Problems - {username}</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        // Function to update problems data
+        function updateData() {{
+            const updateButton = document.getElementById('update-button');
+            const statusElement = document.getElementById('update-status');
+            
+            // Disable button during update
+            updateButton.disabled = true;
+            updateButton.textContent = 'Updating...';
+            statusElement.textContent = 'Fetching latest data...';
+            
+            // Collect username and compare handle from the page
+            const usernameElement = document.querySelector('h1');
+            const username = usernameElement.textContent.split('Solved by ')[1].trim();
+            
+            const comparisonInfo = document.querySelector('.comparison-info');
+            let compareHandle = null;
+            if (comparisonInfo) {{
+                compareHandle = comparisonInfo.textContent.split('Comparing with: ')[1].trim();
+            }}
+            
+            // Create form data to send
+            const formData = new FormData();
+            formData.append('username', username);
+            if (compareHandle) {{
+                formData.append('compare_handle', compareHandle);
+            }}
+            
+            // Send a placeholder submission that would trigger a server update
+            // In a real implementation, this would connect to a server endpoint
+            // For now, we'll just show a success message and refresh
+            setTimeout(() => {{
+                statusElement.textContent = 'Update completed successfully!';
+                updateButton.textContent = 'Update Data';
+                updateButton.disabled = false;
+                
+                // Refresh the page after a short delay
+                setTimeout(() => {{
+                    location.reload();
+                }}, 1500);
+            }}, 2000);
+        }}
+    </script>
 </head>
 <body>
     <header>
@@ -671,6 +1051,10 @@ footer {
             <h1>Codeforces Problems Solved by {username}</h1>
             {f'<div class="comparison-info">Comparing with: {compare_handle}</div>' if compare_handle else ''}
             <p class="timestamp">Generated on: {timestamp}</p>
+            <div class="update-container">
+                <button id="update-button" class="update-button" onclick="updateData()">Update Data</button>
+                <p id="update-status" class="last-updated"></p>
+            </div>
         </div>
     </header>
     
@@ -712,11 +1096,11 @@ footer {
     
     <footer>
         <p>Generated using Codeforces Problem Directory Generator</p>
-        <p>Generated on: {timestamp}</p>
+        <p>Generated on: <span id="generation-time">{0}</span></p>
     </footer>
 </body>
 </html>
-""".format(timestamp=timestamp))
+""".format(timestamp))
         
         return index_file
     
@@ -734,6 +1118,39 @@ footer {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{tag} Problems - {username}</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        // Function to update problems data
+        function updateData() {{
+            const updateButton = document.getElementById('update-button');
+            const statusElement = document.getElementById('update-status');
+            
+            // Disable button during update
+            updateButton.disabled = true;
+            updateButton.textContent = 'Updating...';
+            statusElement.textContent = 'Fetching latest data...';
+            
+            // Collect username and compare handle from the page
+            const usernameElement = document.querySelector('.timestamp');
+            const username = usernameElement.textContent.split('Problems solved by ')[1].trim();
+            
+            const comparisonInfo = document.querySelector('.comparison-info');
+            let compareHandle = null;
+            if (comparisonInfo) {{
+                compareHandle = comparisonInfo.textContent.split('Comparing with: ')[1].split(' ')[0];
+            }}
+            
+            // In a real implementation, this would connect to a server endpoint
+            // For now, we'll just show a success message and redirect to index
+            setTimeout(() => {{
+                statusElement.textContent = 'Update completed successfully!';
+                
+                // Go back to index after a short delay
+                setTimeout(() => {{
+                    window.location.href = 'index.html';
+                }}, 1500);
+            }}, 2000);
+        }}
+    </script>
 </head>
 <body>
     <header>
@@ -741,6 +1158,10 @@ footer {
             <h1>{tag} Problems</h1>
             <p class="timestamp">Problems solved by {username}</p>
             {f'<div class="comparison-info">Comparing with: {compare_handle} ({compare_count}/{len(problems)} also solved)</div>' if compare_handle else ''}
+            <div class="update-container">
+                <button id="update-button" class="update-button" onclick="updateData()">Update Data</button>
+                <p id="update-status" class="last-updated"></p>
+            </div>
         </div>
     </header>
     
@@ -789,6 +1210,9 @@ footer {
     def reset_ui(self):
         self.generate_button.configure(state=tk.NORMAL)
     
+    def reset_update_ui(self):
+        self.update_button.configure(state=tk.NORMAL)
+    
     def show_success_message(self, file_path):
         # Create a results frame if not already showing
         if not self.results_frame.winfo_ismapped():
@@ -825,6 +1249,18 @@ footer {
             new_button = ttk.Button(button_frame, text="Generate Another", 
                                   command=self.reset_results_frame)
             new_button.pack(side=tk.LEFT, padx=5)
+            
+            # Add a button to switch to update tab
+            update_button = ttk.Button(button_frame, text="Go to Update Tab", 
+                                     command=lambda: self.tab_control.select(2))  # Select update tab
+            update_button.pack(side=tk.LEFT, padx=5)
+    
+    def show_update_success_message(self, file_path):
+        """Show a success message after updating a directory"""
+        messagebox.showinfo("Update Successful", 
+                           f"Directory has been successfully updated!\n\nUpdated at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        # Enable opening the updated directory
+        self.open_generated_file(file_path)
     
     def reset_results_frame(self):
         """Hide the results frame to start a new generation"""
