@@ -2,7 +2,7 @@
 
 A Python application that creates an organized, interactive HTML directory of Codeforces problems you've solved, with an option to compare with another user's solved problems.
 
-![Codeforces Problem Directory Generator])(SharedScreenshot.jpg)
+![Codeforces Problem Directory Generator])(https://github.com/Shishir-is-divided-by-zero/codeforces-problem-directory/blob/88252e41555a373cef961814f983e4e7da8d1642/SharedScreenshot.jpg)
 
 ## Features
 
